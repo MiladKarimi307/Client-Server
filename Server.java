@@ -2,10 +2,7 @@
 import java.io.*;
 import java.net.*;
 import java.sql.Time;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 public class Server {
 
@@ -17,28 +14,42 @@ public class Server {
 	static ArrayList<userInfo> connectionsList;
 	static Long startTime;
 
+	public Server(int port) throws IOException {
+		serverSocket = new ServerSocket(port);
+		connectionsList = new ArrayList<userInfo>();// list of users
+		listener = new Listener();
+		startTime = System.currentTimeMillis(); // server start up time.
+	}
+
 	public static void main(String[] args) throws IOException, InterruptedException {
 
-		serverSocket = new ServerSocket(2222); // listen to a specific port
-		startTime = System.currentTimeMillis();
-		connectionsList = new ArrayList<userInfo>();
-		listener = new Listener();
+		new Server(2222);
+
+		// listen for new connections
 		listener.start();
 		System.out.println("Server is listening...");
+
+		// main while loop
 		while (true) {
 			while (connectionsList.isEmpty())
 				Thread.sleep(1000);
-			
+
+			// let current user be the first on the list
 			user = connectionsList.get(0);
-			userInput = user.inputStream; // socket input stream
-			userOutput = user.outputStream; // socket output stream
-			if (userInput.available() == 0) { // if 0 data available in socket input stream
+
+			// setup input/output stream for user
+			userInput = user.inputStream;
+			userOutput = user.outputStream;
+
+			// move users with no request to the end of the list
+			if (userInput.available() == 0) {
 				connectionsList.add(connectionsList.remove(0));
 				continue;
 			}
-			java.awt.Toolkit.getDefaultToolkit().beep();
+			// read user's input
 			user.request = userInput.readUTF();
 
+			// process user's request and send reply
 			switch (user.request) {
 			case "1":
 			case "host current date and time":
@@ -62,9 +73,7 @@ public class Server {
 			case "4":
 			case "host netstat":
 			case "netstat":
-				for (String str : netstat()) {
-					user.outputStream.writeUTF(str);
-				}
+				userOutput.writeUTF(runningProcesses("netstat"));
 				break;
 			case "5":
 			case "host current users":
@@ -76,103 +85,117 @@ public class Server {
 			case "host running processes":
 			case "running processes":
 			case "processes":
-				runningProcesses();
+				if (System.getProperty("os.name").toLowerCase().startsWith("windows"))
+					userOutput.writeUTF(runningProcesses("tasklist"));
+				else
+					userOutput.writeUTF(runningProcesses("ps"));
 				break;
 			case "7":
 			case "quit":
 			case "exit":
-				userOutput.writeUTF("case 7");
+				user.inputStream.close();
+				user.outputStream.close();
 				user.socket.close();
 				connectionsList.remove(0);
+				System.out.println("A user disconnected");
 				break;
-
 			default:
 				userOutput.writeUTF("Not a valid entry");
 				break;
 			}
 		}
-
 	}
 
-	@SuppressWarnings("deprecation")
 	private static String currentDateTime() {
-		return new Time(System.currentTimeMillis()).toLocaleString();
-
+		return "  "+ new Date().toString();
 	}
 
 	private static String upTime() {
-		return "Server uptime: " + new Time(System.currentTimeMillis() - startTime).toString().substring(3)
-				+ "\nUser uptime: " + new Time(System.currentTimeMillis() - user.loginTime).toString().substring(3);
-
+		return "  Server uptime: " + new Time(System.currentTimeMillis() - startTime).toString().substring(3)
+				+ "\n  Client7 uptime: " + new Time(System.currentTimeMillis() - user.loginTime).toString().substring(3);
 	}
 
 	private static String memoryUse() {
+		Byte dp = 3;
+		while (dp > 0) {
+			try {
+				return "   Free Memory\t  Memory in Use    Total Memory\n"
+						+ "  -------------  ---------------  --------------\n    "
+						+ String.valueOf(Runtime.getRuntime().freeMemory() / (1024L * 1024L)) + "."
+						+ String.valueOf(Runtime.getRuntime().freeMemory() % (1024L * 1024L)).substring(0, dp)
+						+ "MB\t    " +
+
+						String.valueOf((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())
+								/ (1024L * 1024L))
+						+ "." + String.valueOf((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())
+								% (1024L * 1024L)).substring(0, dp)
+						+ "MB\t    " +
+
+						String.valueOf(Runtime.getRuntime().totalMemory() / (1024L * 1024L)) + "."
+						+ String.valueOf(Runtime.getRuntime().totalMemory() % (1024L * 1024L)).substring(0, dp) + "MB";
+
+			} catch (StringIndexOutOfBoundsException siobe) {
+				dp--;
+				continue;
+			}
+		}
 		return "   Free Memory\t  Memory in Use    Total Memory\n"
 				+ "  -------------  ---------------  --------------\n    "
-				+ String.valueOf(Runtime.getRuntime().freeMemory() / (1024L * 1024L)) + "."
-				+ String.valueOf(Runtime.getRuntime().freeMemory() % (1024L * 1024L)).substring(0, 2) + "MB\t    " +
+				+ String.valueOf(Runtime.getRuntime().freeMemory() / (1024L * 1024L)) + " MB\t    " +
 
 				String.valueOf(
 						(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024L * 1024L))
-				+ "."
-				+ String.valueOf(
-						(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) % (1024L * 1024L))
-						.substring(0, 3)
-				+ "MB\t    " +
+				+ " MB\t    " +
 
-				String.valueOf(Runtime.getRuntime().totalMemory() / (1024L * 1024L)) + "."
-				+ String.valueOf(Runtime.getRuntime().totalMemory() % (1024L * 1024L)).substring(0, 2) + "MB";
-	}
-
-	private static ArrayList<String> netstat() {
-		try {
-			Process p = Runtime.getRuntime().exec("cmd netstat");
-			DataInputStream netstatInputStream = new DataInputStream(p.getInputStream());
-			ArrayList<String> netstatOutput = new ArrayList<String>();
-			while (netstatInputStream.available() > 0) {
-
-				netstatOutput.add(netstatInputStream.readUTF());
-			}
-			return netstatOutput;
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return null;
+				String.valueOf(Runtime.getRuntime().totalMemory() / (1024L * 1024L)) + " MB";
 
 	}
 
+	@SuppressWarnings("static-access")
 	private static String currentUsers() {
 		String result = "";
+		userInfo client;
+		// iterate through the list and collect user info
 		for (int i = 0; i < connectionsList.size(); i++) {
-			if(isOnline)
-			result += "\n" + (i + 1) + ")   IP Address:"
-					+ connectionsList.get(i).socket.getRemoteSocketAddress().toString() + "   Local Address:"
-					+ connectionsList.get(i).socket.getInetAddress().toString();
+			try {
+				client = connectionsList.get(i);
+				result += "\n" + (i + 1) + ") " + client.socket.getInetAddress().getLocalHost() + "   IP Address:"
+						+ client.socket.getRemoteSocketAddress().toString() + "   Local Address:"
+						+ client.socket.getInetAddress().toString();
+			} catch (UnknownHostException e) {
+				e.printStackTrace();
+			}
 		}
 		return result;
 	}
 
-	private static ArrayList<String> runningProcesses() {
-		
+	private static String runningProcesses(String str) {
+		String result = "";
+		Process p;
 		try {
-			ArrayList<String> result = new ArrayList<String>();
-		    Process p = Runtime.getRuntime().exec("cmd /c tasklist");
-		    BufferedReader input =
-		            new BufferedReader(new InputStreamReader(p.getInputStream()));
-		    while (result.add(input.readLine())) {
-		    	// System.out.println(line); 
-		    }
-		    input.close();
-		    for(String str: result) System.out.println(str);
-		    return result;
-		} catch (Exception err) {
-		    err.printStackTrace();
-		}
-		return null;
-		
-		
-	}
 
+			// execute the command
+			p = Runtime.getRuntime().exec(str);
+
+			// make the thread wait until the process is finished
+			// if netstat is the command being processed
+			if (str.contains("netstat"))
+				p.waitFor();
+			String temp;
+			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+			// collect the output 
+			while ((temp = br.readLine()) != null) {
+				result += temp + "\n";
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			System.out.println("the process was not able to complete.");
+			e.printStackTrace();
+		}
+		return result;
+	}
+	
 	public static class userInfo {
 		Socket socket;
 		String ipAddress;
@@ -191,21 +214,16 @@ public class Server {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-
 		}
-
 	}
-
+	
+	// accept new connections request and add to the list
 	public static class Listener extends Thread {
-
-		public Listener() {
-		}
-
 		public void run() {
 			while (true) {
 				try {
 					connectionsList.add(new userInfo(serverSocket.accept()));
-					System.out.println("New connection!");
+					System.out.println("New user connected");
 
 					connectionsList.get(connectionsList.size()
 							- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket.getInetAddress()
