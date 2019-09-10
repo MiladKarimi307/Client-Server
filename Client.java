@@ -1,6 +1,7 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Scanner;
@@ -12,11 +13,16 @@ public class Client {
 	private static Socket socket;
 	private static Scanner scanner;
 
-	public Client(String hostAddress) throws UnknownHostException, IOException {
+	public Client(String hostAddress) throws UnknownHostException, IOException, NumberFormatException{
 
-		// connect to the server
-		socket = new Socket("localhost", 2222);
-
+		try {
+			// ask user for port number & connect to the server
+			System.out.print("Enter port number: ");
+			socket = new Socket(hostAddress, Integer.valueOf(scanner.nextLine()));
+		} catch (NumberFormatException nfe) {
+			System.out.println("Invalid port number");
+			System.exit(1);
+		}
 		// socket input stream
 		socketInputStream = new DataInputStream(socket.getInputStream());
 
@@ -27,18 +33,21 @@ public class Client {
 	public static void main(String[] args) {
 
 		try {
-			// FIXME: localhost needs to be changed to args[0]
-			new Client("localhost");
 			scanner = new Scanner(System.in);
+			new Client(args[0]);
+			
 		} catch (ArrayIndexOutOfBoundsException aiobe) {
 			System.out.println("Please enter the host name or ip address\n");
-			System.exit(1);
-		} catch (UnknownHostException uhe) {
+			System.exit(0);
+		} catch (UnknownHostException uhe ) {
 			System.out.println("Unable to connect to the server");
-			System.exit(2);
+			System.exit(1);
+		} catch (ConnectException ce ) {
+			System.out.println("Connection refused.");
+			System.exit(1);
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
-			System.exit(3);
+			System.exit(4);
 		}
 		System.out.println("\nSelect from one of the following choices:");
 		
@@ -100,7 +109,7 @@ public class Client {
 					continue;
 				}
 					
-				// print an error and redisplay menu if user's comman is not valid 
+				// print an error and redisplay menu if user's command is not valid 
 				System.out.println("'" + comm + "' is not a valid entry.");
 				System.out.println(" Please enter a command from the following choices \n");
 				displayMenu();
@@ -124,11 +133,11 @@ public class Client {
 
 	}
 	
-	// check for validity of user request
+	// check for validity of user input
 	private static boolean isValid(String str) {
 		String[] commList = { "host current date and time", "current date and time", "date and time", "date", "time",
 				"host uptime", "uptime", "host memory use", "memory use", "memory", "host netstat", "netstat",
-				"host current users", "host running processes", "1", "2", "3", "4", "5", "6" };
+				"host current users", "current users", "users", "host running processes", "processes", "1", "2", "3", "4", "5", "6" };
 		for (Integer i = 0; i < commList.length; i++) {
 			if ((str.compareTo(commList[i]) == 0))
 				return true;
