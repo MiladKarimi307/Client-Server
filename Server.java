@@ -31,6 +31,8 @@ public class Server {
 
 		// main while loop
 		while (true) {
+			// FIXME: remove this try block.
+			try{
 			while (connectionsList.isEmpty())
 				Thread.sleep(1000);
 
@@ -103,7 +105,15 @@ public class Server {
 				userOutput.writeUTF("Not a valid entry");
 				break;
 			}
+		
+		// FIXME: remove these Exceptions and their try b
+		} catch (NullPointerException ex) {
+			System.out.println(ex);
+		} catch (ArrayIndexOutOfBoundsException exx) {
+			System.out.println(exx);
 		}
+			}
+		
 	}
 
 	private static String currentDateTime() {
@@ -112,7 +122,7 @@ public class Server {
 
 	private static String upTime() {
 		return "  Server uptime: " + new Time(System.currentTimeMillis() - startTime).toString().substring(3)
-				+ "\n  Client7 uptime: " + new Time(System.currentTimeMillis() - user.loginTime).toString().substring(3);
+				+ "\n  Client uptime: " + new Time(System.currentTimeMillis() - user.loginTime).toString().substring(3);
 	}
 
 	private static String memoryUse() {
@@ -236,6 +246,10 @@ public class Server {
 					connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
 				} catch (IOException e) {
 					e.printStackTrace();
+				
+				// FIXME: remove this Exception
+				} catch (IndexOutOfBoundsException ioobe) {
+					System.out.println("Error");
 				}
 
 			}
