@@ -45,12 +45,13 @@ public class Client {
 		} catch (NumberFormatException nfe) {
 			System.out.println("Invalid port number");
 			System.exit(1);
-		} catch (UnknownHostException uhe ) {
-			System.out.println("Unable to connect to the server");
-			System.exit(1);
 		} catch (ConnectException ce ) {
 			System.out.println("Connection refused.");
 			System.exit(1);
+		} catch (UnknownHostException uhe ) {
+			System.out.println("Unable to connect to the server");
+			System.exit(1);
+
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 			System.exit(4);

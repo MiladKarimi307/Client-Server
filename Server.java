@@ -31,93 +31,89 @@ public class Server {
 
 		// main while loop
 		while (true) {
-			// FIXME: remove this try block.
-			try{
-			while (connectionsList.isEmpty())
-				Thread.sleep(1000);
 
-			// let current user be the first on the list
-			user = connectionsList.get(0);
+			synchronized (connectionsList) {
 
-			// setup input/output stream for user
-			userInput = user.inputStream;
-			userOutput = user.outputStream;
+				if (connectionsList.isEmpty())
+					connectionsList.wait();
 
-			// move users with no request to the end of the list
-			if (userInput.available() == 0) {
-				connectionsList.add(connectionsList.remove(0));
-				continue;
+				// let current user be the first on the list
+				user = connectionsList.get(0);
+
+				// setup input/output stream for user
+				userInput = user.inputStream;
+				userOutput = user.outputStream;
+
+				// move users with no request to the end of the list
+				if (userInput.available() == 0) {
+					connectionsList.add(connectionsList.remove(0));
+					continue;
+				}
+				// read user's input
+				user.request = userInput.readUTF();
+
+				// process user's request and send reply
+				switch (user.request) {
+				case "1":
+				case "host current date and time":
+				case "current date and time":
+				case "date and time":
+				case "date":
+				case "time":
+					userOutput.writeUTF(currentDateTime());
+					break;
+				case "2":
+				case "host uptime":
+				case "uptime":
+					userOutput.writeUTF(upTime());
+					break;
+				case "3":
+				case "host memory use":
+				case "memory use":
+				case "memory":
+					userOutput.writeUTF(memoryUse());
+					break;
+				case "4":
+				case "host netstat":
+				case "netstat":
+					userOutput.writeUTF(runningProcesses("netstat"));
+					break;
+				case "5":
+				case "host current users":
+				case "current users":
+				case "users":
+					userOutput.writeUTF(currentUsers());
+					break;
+				case "6":
+				case "host running processes":
+				case "running processes":
+				case "processes":
+					if (System.getProperty("os.name").toLowerCase().startsWith("windows"))
+						userOutput.writeUTF(runningProcesses("tasklist"));
+					else
+						userOutput.writeUTF(runningProcesses("ps"));
+					break;
+				case "7":
+				case "quit":
+				case "exit":
+					user.inputStream.close();
+					user.outputStream.close();
+					user.socket.close();
+					connectionsList.remove(0);
+					System.out.println("A user disconnected");
+					break;
+				default:
+					userOutput.writeUTF("Not a valid entry");
+					break;
+				}
+
 			}
-			// read user's input
-			user.request = userInput.readUTF();
-
-			// process user's request and send reply
-			switch (user.request) {
-			case "1":
-			case "host current date and time":
-			case "current date and time":
-			case "date and time":
-			case "date":
-			case "time":
-				userOutput.writeUTF(currentDateTime());
-				break;
-			case "2":
-			case "host uptime":
-			case "uptime":
-				userOutput.writeUTF(upTime());
-				break;
-			case "3":
-			case "host memory use":
-			case "memory use":
-			case "memory":
-				userOutput.writeUTF(memoryUse());
-				break;
-			case "4":
-			case "host netstat":
-			case "netstat":
-				userOutput.writeUTF(runningProcesses("netstat"));
-				break;
-			case "5":
-			case "host current users":
-			case "current users":
-			case "users":
-				userOutput.writeUTF(currentUsers());
-				break;
-			case "6":
-			case "host running processes":
-			case "running processes":
-			case "processes":
-				if (System.getProperty("os.name").toLowerCase().startsWith("windows"))
-					userOutput.writeUTF(runningProcesses("tasklist"));
-				else
-					userOutput.writeUTF(runningProcesses("ps"));
-				break;
-			case "7":
-			case "quit":
-			case "exit":
-				user.inputStream.close();
-				user.outputStream.close();
-				user.socket.close();
-				connectionsList.remove(0);
-				System.out.println("A user disconnected");
-				break;
-			default:
-				userOutput.writeUTF("Not a valid entry");
-				break;
-			}
-		
-		// FIXME: remove these Exceptions and their try b
-		} catch (NullPointerException ex) {
-			System.out.println(ex);
-		} catch (ArrayIndexOutOfBoundsException exx) {
-			System.out.println(exx);
 		}
-			}
-		
+
 	}
 
 	private static String currentDateTime() {
-		return "  "+ new Date().toString();
+		return "  " + new Date().toString();
 	}
 
 	private static String upTime() {
@@ -193,7 +189,7 @@ public class Server {
 				p.waitFor();
 			String temp;
 			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-			// collect the output 
+			// collect the output
 			while ((temp = br.readLine()) != null) {
 				result += temp + "\n";
 			}
@@ -205,7 +201,7 @@ public class Server {
 		}
 		return result;
 	}
-	
+
 	public static class userInfo {
 		Socket socket;
 		String ipAddress;
@@ -226,35 +222,36 @@ public class Server {
 			}
 		}
 	}
-	
+
 	// accept new connections request and add to the list
 	public static class Listener extends Thread {
 		public void run() {
 			while (true) {
 				try {
-					connectionsList.add(new userInfo(serverSocket.accept()));
-					System.out.println("New user connected");
+					
+					
+						userInfo temp = new userInfo(serverSocket.accept());
+						synchronized (connectionsList) {
+						connectionsList.notify();
+						connectionsList.add(temp);
+						System.out.println("New user connected");
 
-					connectionsList.get(connectionsList.size()
-							- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket.getInetAddress()
-									.toString();
+						connectionsList.get(connectionsList.size()
+								- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket.getInetAddress()
+										.toString();
 
-					connectionsList.get(connectionsList.size()
-							- 1).localAddress = connectionsList.get(connectionsList.size() - 1).socket.getLocalAddress()
-									.toString();
+						connectionsList.get(connectionsList.size()
+								- 1).localAddress = connectionsList.get(connectionsList.size() - 1).socket
+										.getLocalAddress().toString();
 
-					connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
+						connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
+					}
 				} catch (IOException e) {
 					e.printStackTrace();
-				
-				// FIXME: remove this Exception
-				} catch (IndexOutOfBoundsException ioobe) {
-					System.out.println("Error");
 				}
 
 			}
 		}
-
 	}
 
 }
