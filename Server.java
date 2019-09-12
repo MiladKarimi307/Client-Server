@@ -13,6 +13,7 @@ public class Server {
 	static Listener listener;
 	static ArrayList<userInfo> connectionsList;
 	static Long startTime;
+	static Integer count;
 
 	public Server(int port) throws IOException {
 		serverSocket = new ServerSocket(port);
@@ -100,7 +101,7 @@ public class Server {
 					user.outputStream.close();
 					user.socket.close();
 					connectionsList.remove(0);
-					System.out.println("A user disconnected");
+					System.out.println(" A user left the server @" + new Time(System.currentTimeMillis()).toString());
 					break;
 				default:
 					userOutput.writeUTF("Not a valid entry");
@@ -225,26 +226,73 @@ public class Server {
 
 	// accept new connections request and add to the list
 	public static class Listener extends Thread {
+		static Integer count;
+		Integer c;
+
+		public Listener() {
+			count = 0;
+			c = 0;
+
+		}
+
 		public void run() {
+
+			new Listener();
+
+			// if many clients join the server at once inform with a single line
+			Runnable watcher = new Runnable() {
+				public void run() {
+					while (true) {
+						synchronized (count) {
+							try {
+								while (count > 0) {
+									c = count;
+									Thread.sleep(300);
+									if (count > c)
+										continue;
+									else
+										break;
+								}
+								if (count > 1)
+									System.out.println("[" + (count + 1) + "] Users joined the server @"
+											+ new Time(System.currentTimeMillis()).toString());
+								else if (count == 1) {
+									System.out.println(" A user joined the server @"
+											+ new Time(System.currentTimeMillis()).toString());
+								} else
+									System.out.print("");
+								c = 0;
+								count = 0;
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+
+						}
+					}
+				}
+			};
+			new Thread(watcher).start();
 			while (true) {
 				try {
-					
-					
-						userInfo temp = new userInfo(serverSocket.accept());
+
+					userInfo temp = new userInfo(serverSocket.accept());
+					synchronized (count) {
+						count++;
+
 						synchronized (connectionsList) {
-						connectionsList.notify();
-						connectionsList.add(temp);
-						System.out.println("New user connected");
+							connectionsList.notify();
+							connectionsList.add(temp);
 
-						connectionsList.get(connectionsList.size()
-								- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket.getInetAddress()
-										.toString();
+							connectionsList.get(connectionsList.size()
+									- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket
+											.getInetAddress().toString();
 
-						connectionsList.get(connectionsList.size()
-								- 1).localAddress = connectionsList.get(connectionsList.size() - 1).socket
-										.getLocalAddress().toString();
+							connectionsList.get(connectionsList.size()
+									- 1).localAddress = connectionsList.get(connectionsList.size() - 1).socket
+											.getLocalAddress().toString();
 
-						connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
+							connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
+						}
 					}
 				} catch (IOException e) {
 					e.printStackTrace();
