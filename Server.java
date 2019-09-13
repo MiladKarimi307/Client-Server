@@ -8,24 +8,19 @@ public class Server {
 
 	static ServerSocket serverSocket;
 	static userInfo user;
-	static DataInputStream userInput;
-	static DataOutputStream userOutput;
 	static Listener listener;
 	static ArrayList<userInfo> connectionsList;
-	static Long startTime;
-	static Integer count;
 
 	public Server(int port) throws IOException {
 		serverSocket = new ServerSocket(port);
 		connectionsList = new ArrayList<userInfo>();// list of users
 		listener = new Listener();
-		startTime = System.currentTimeMillis(); // server start up time.
 	}
 
 	public static void main(String[] args) throws IOException, InterruptedException {
 
 		new Server(2222);
-
+		Long startTime = System.currentTimeMillis(); // server start up time.
 		// listen for new connections
 		listener.start();
 		System.out.println("Server is listening...");
@@ -42,16 +37,16 @@ public class Server {
 				user = connectionsList.get(0);
 
 				// setup input/output stream for user
-				userInput = user.inputStream;
-				userOutput = user.outputStream;
+				user.inputStream = user.inputStream;
+				user.outputStream = user.outputStream;
 
 				// move users with no request to the end of the list
-				if (userInput.available() == 0) {
+				if (user.inputStream.available() == 0) {
 					connectionsList.add(connectionsList.remove(0));
 					continue;
 				}
 				// read user's input
-				user.request = userInput.readUTF();
+				user.request = user.inputStream.readUTF();
 
 				// process user's request and send reply
 				switch (user.request) {
@@ -61,38 +56,38 @@ public class Server {
 				case "date and time":
 				case "date":
 				case "time":
-					userOutput.writeUTF(currentDateTime());
+					user.outputStream.writeUTF(currentDateTime());
 					break;
 				case "2":
 				case "host uptime":
 				case "uptime":
-					userOutput.writeUTF(upTime());
+					user.outputStream.writeUTF(upTime(startTime));
 					break;
 				case "3":
 				case "host memory use":
 				case "memory use":
 				case "memory":
-					userOutput.writeUTF(memoryUse());
+					user.outputStream.writeUTF(memoryUse());
 					break;
 				case "4":
 				case "host netstat":
 				case "netstat":
-					userOutput.writeUTF(runningProcesses("netstat"));
+					user.outputStream.writeUTF(runningProcesses("netstat"));
 					break;
 				case "5":
 				case "host current users":
 				case "current users":
 				case "users":
-					userOutput.writeUTF(currentUsers());
+					user.outputStream.writeUTF(currentUsers());
 					break;
 				case "6":
 				case "host running processes":
 				case "running processes":
 				case "processes":
 					if (System.getProperty("os.name").toLowerCase().startsWith("windows"))
-						userOutput.writeUTF(runningProcesses("tasklist"));
+						user.outputStream.writeUTF(runningProcesses("tasklist"));
 					else
-						userOutput.writeUTF(runningProcesses("ps"));
+						user.outputStream.writeUTF(runningProcesses("ps"));
 					break;
 				case "7":
 				case "quit":
@@ -101,10 +96,10 @@ public class Server {
 					user.outputStream.close();
 					user.socket.close();
 					connectionsList.remove(0);
-					System.out.println(" A user left the server @" + new Time(System.currentTimeMillis()).toString());
+					System.out.println(" A user left the server   @" + new Time(System.currentTimeMillis()).toString());
 					break;
 				default:
-					userOutput.writeUTF("Not a valid entry");
+					user.outputStream.writeUTF("Not a valid entry");
 					break;
 				}
 
@@ -117,8 +112,8 @@ public class Server {
 		return "  " + new Date().toString();
 	}
 
-	private static String upTime() {
-		return "  Server uptime: " + new Time(System.currentTimeMillis() - startTime).toString().substring(3)
+	private static String upTime(Long serverStartTime) {
+		return "  Server uptime: " + new Time(System.currentTimeMillis() - serverStartTime).toString().substring(3)
 				+ "\n  Client uptime: " + new Time(System.currentTimeMillis() - user.loginTime).toString().substring(3);
 	}
 
@@ -162,13 +157,38 @@ public class Server {
 	private static String currentUsers() {
 		String result = "";
 		userInfo client;
+		String userName;
+		Integer userNameLength = 16;
+		String ipAddress;
+		String clientUpTime;
+		String clientLoginTime;
+
 		// iterate through the list and collect user info
+		result = "  #       COMPUTER-NAME           IP-ADDRESS         LOGIN TIME     UPTIME\n"
+			   + " ----  --------------------    -----------------    ------------  -----------\n";
 		for (int i = 0; i < connectionsList.size(); i++) {
 			try {
 				client = connectionsList.get(i);
-				result += "\n" + (i + 1) + ") " + client.socket.getInetAddress().getLocalHost() + "   IP Address:"
-						+ client.socket.getRemoteSocketAddress().toString() + "   Local Address:"
-						+ client.socket.getInetAddress().toString();
+				userName = client.socket.getInetAddress().getLocalHost().toString().substring(0,
+						client.socket.getInetAddress().getLocalHost().toString().lastIndexOf('/'));
+
+				ipAddress = client.socket.getRemoteSocketAddress().toString().replace('/', ' ').trim();
+				clientLoginTime = new Time(user.loginTime).toString();
+				clientUpTime = new Time(System.currentTimeMillis() - user.loginTime).toString();
+
+				try {
+					// end user names that are too big with "..."
+					userName = userName.substring(0, userNameLength) + "...";
+				} catch (StringIndexOutOfBoundsException siobe) {
+					for (int j = 0; j < userNameLength + 3 - userName.length() + 1; j++) {
+						userName = userName + " ";
+					}
+				}
+				for(int j = 0; j < (3 - String.valueOf(i+1).length()); j++)
+				result += " ";
+				result +=  " "+ (i+1) +"    "+ userName + "      " + ipAddress + "       " + clientLoginTime + "      "
+						+ clientUpTime+"\n";
+				
 			} catch (UnknownHostException e) {
 				e.printStackTrace();
 			}
@@ -226,13 +246,12 @@ public class Server {
 
 	// accept new connections request and add to the list
 	public static class Listener extends Thread {
-		static Integer count;
+		Integer count;
 		Integer c;
 
 		public Listener() {
 			count = 0;
 			c = 0;
-
 		}
 
 		public void run() {
@@ -240,7 +259,7 @@ public class Server {
 			new Listener();
 
 			// if many clients join the server at once inform with a single line
-			Runnable watcher = new Runnable() {
+			Runnable counter = new Runnable() {
 				public void run() {
 					while (true) {
 						synchronized (count) {
@@ -271,7 +290,7 @@ public class Server {
 					}
 				}
 			};
-			new Thread(watcher).start();
+			new Thread(counter).start();
 			while (true) {
 				try {
 

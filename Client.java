@@ -9,8 +9,8 @@ import java.util.Scanner;
 
 public class Client {
 
-	private static DataInputStream socketInputStream;
-	private static DataOutputStream socketOutputStream;
+	private static DataInputStream input;
+	private static DataOutputStream output;
 	private static Socket socket;
 	private static Scanner scanner;
 	private static Integer port;
@@ -22,36 +22,46 @@ public class Client {
 		socket = new Socket(hostAddress, port);
 
 		// socket input stream
-		socketInputStream = new DataInputStream(socket.getInputStream());
+		input = new DataInputStream(socket.getInputStream());
 
 		// socket output stream
-		socketOutputStream = new DataOutputStream(socket.getOutputStream());
+		output = new DataOutputStream(socket.getOutputStream());
 	}
 
 	public static void main(String[] args) {
 
-		// ask for port number & connect to the server
 		try {
 			// FIXME: host address needs to be changed to args[0];
 			hostAddress = "localhost";
 			scanner = new Scanner(System.in);
-			System.out.print("Enter port number: ");
-			port = Math.abs(Integer.valueOf(scanner.nextLine()));
+
+			// ask for port number, validate & connect to the server
+			while (true) {
+				try {
+					System.out.print("Enter port number: ");
+					port = Integer.valueOf(scanner.nextLine());
+					if (port < 0 || port > 65534) {
+						System.out.println(" Port number must be between 0 - 65534\n");
+						continue;
+					}
+				} catch (NumberFormatException nfe) {
+					System.out.println(" Invalid input.");
+					System.out.print(" Port number must be a positive integer.\n\n");
+					continue;
+				}
+				break;
+			}
 			new Client(hostAddress, port);
 
 		} catch (ArrayIndexOutOfBoundsException aiobe) {
 			System.out.println("Please enter the host name or ip address\n");
 			System.exit(0);
-		} catch (NumberFormatException nfe) {
-			System.out.println("Invalid port number");
-			System.exit(1);
 		} catch (ConnectException ce) {
 			System.out.println("Connection refused.");
 			System.exit(1);
 		} catch (UnknownHostException uhe) {
 			System.out.println("Unable to connect to the server");
 			System.exit(1);
-
 		} catch (IOException ioe) {
 			ioe.printStackTrace();
 			System.exit(4);
@@ -62,6 +72,8 @@ public class Client {
 		displayMenu();
 		System.out.print("\n>> ");
 		String comm;
+		
+		// the main while loop
 		do {
 			while (!scanner.hasNextLine()) {
 				try {
@@ -73,13 +85,14 @@ public class Client {
 			// get user input
 			comm = scanner.nextLine().toLowerCase();
 
-			// if the command is valid send it to the server
+			// if the command is valid send to the server
 			if (isValid(comm)) {
 				try {
 
 					// send request to the serve
-					socketOutputStream.writeUTF(comm);
-
+					output.writeUTF(comm);
+					
+					// if netstat is being processed ask user to wait
 					if (comm.equals("4") || comm.contains("netstat")) {
 						System.out.println(" This process could take a while");
 						try {
@@ -91,7 +104,7 @@ public class Client {
 					}
 
 					// receive reply from server
-					comm = socketInputStream.readUTF();
+					comm = input.readUTF();
 
 					// print the reply
 					System.out.println(comm);
@@ -107,7 +120,7 @@ public class Client {
 				// leave the main loop if user command 'quit'.
 				if (comm.equals("quit") || comm.equals("7") || comm.equals("exit"))
 					break;
-
+				
 				if (comm.equals("8")) {
 					int n = 0;
 					System.out.print(" Enter number of clients: ");
@@ -126,7 +139,6 @@ public class Client {
 						synchronized (cList) {
 							// create n number of threads of clinet class
 							for (int i = 0; i < n; i++) {
-
 								try {
 
 									// add each client to the list
@@ -143,15 +155,17 @@ public class Client {
 							// start the threads and calculate the avg latency
 							for (int i = 0; i < n; i++) {
 								cList.get(i).run();
-								System.out.println(" " + (i + 1) + ")   Latency: "
-										+ (cList.get(i).timeB - cList.get(i).timeA) + "ms");
+								for(int j = 0; j < (3 - String.valueOf(i+1).length()); j++)
+									System.out.print(" ");
+								System.out.print((i + 1) + ")   Latency: "
+										+ (cList.get(i).timeB - cList.get(i).timeA) + "ms\n");
 								average += cList.get(i).timeB - cList.get(i).timeA;
 							}
 							System.out.println(" The average latency is: " + average / n
 									+ "ms and the whole proccess took " + average + "ms/" + average / 1000 + "s");
 							try {
-								while (socketInputStream.available() > 0)
-									socketInputStream.readUTF();
+								while (input.available() > 0)
+									input.readUTF();
 							} catch (IOException e) {
 								e.printStackTrace();
 							}
@@ -181,7 +195,7 @@ public class Client {
 
 		System.out.println("Program closed");
 		try {
-			socketOutputStream.writeUTF("quit");
+			output.writeUTF("quit");
 		} catch (IOException e) {
 			System.out.println(e);
 		}
@@ -207,7 +221,7 @@ public class Client {
 		}
 		return false;
 	}
-
+	
 	public static class thread extends Client implements Runnable {
 
 		Long timeA;
@@ -224,8 +238,8 @@ public class Client {
 		public void run() {
 			timeA = System.currentTimeMillis();
 			try {
-				socketOutputStream.writeUTF(request);
-				reply = socketInputStream.readUTF();
+				output.writeUTF(request);
+				reply = input.readUTF();
 				timeB = System.currentTimeMillis();
 			} catch (IOException e) {
 				e.printStackTrace();
