@@ -72,7 +72,7 @@ public class Client {
 		displayMenu();
 		System.out.print("\n>> ");
 		String comm;
-		
+
 		// the main while loop
 		do {
 			while (!scanner.hasNextLine()) {
@@ -82,6 +82,7 @@ public class Client {
 					e.printStackTrace();
 				}
 			}
+			
 			// get user input
 			comm = scanner.nextLine().toLowerCase();
 
@@ -91,7 +92,7 @@ public class Client {
 
 					// send request to the serve
 					output.writeUTF(comm);
-					
+
 					// if netstat is being processed ask user to wait
 					if (comm.equals("4") || comm.contains("netstat")) {
 						System.out.println(" This process could take a while");
@@ -113,14 +114,14 @@ public class Client {
 					System.out.println("Unable to connect to the server.");
 					System.out.println("Program closed");
 					System.exit(3);
-
 				}
 			} else {
 
 				// leave the main loop if user command 'quit'.
 				if (comm.equals("quit") || comm.equals("7") || comm.equals("exit"))
 					break;
-				
+
+				// create instances of Client class and run the same command on all of them.
 				if (comm.equals("8")) {
 					int n = 0;
 					System.out.print(" Enter number of clients: ");
@@ -133,16 +134,18 @@ public class Client {
 					displayMenu();
 					System.out.println(">> ");
 					String s = scanner.nextLine();
-					ArrayList<thread> cList = new ArrayList<>();
+					ArrayList<Clients> cList = new ArrayList<>();
 					Long average = 0L;
+					Integer k = 0;
 					if (isValid(s)) {
 						synchronized (cList) {
-							// create n number of threads of clinet class
+
+							// create n number of client threads
 							for (int i = 0; i < n; i++) {
 								try {
 
 									// add each client to the list
-									cList.add(new thread(hostAddress, port, s));
+									cList.add(new Clients(hostAddress, port, s));
 								} catch (NumberFormatException e) {
 									e.printStackTrace();
 								} catch (UnknownHostException e) {
@@ -151,18 +154,35 @@ public class Client {
 									e.printStackTrace();
 								}
 							}
+							Long processStartTime = System.currentTimeMillis();
 
-							// start the threads and calculate the avg latency
-							for (int i = 0; i < n; i++) {
-								cList.get(i).run();
-								for(int j = 0; j < (3 - String.valueOf(i+1).length()); j++)
-									System.out.print(" ");
-								System.out.print((i + 1) + ")   Latency: "
-										+ (cList.get(i).timeB - cList.get(i).timeA) + "ms\n");
-								average += cList.get(i).timeB - cList.get(i).timeA;
+							// start all the ClientThreads
+							for (Clients client : cList) {
+								client.start();
 							}
-							System.out.println(" The average latency is: " + average / n
-									+ "ms and the whole proccess took " + average + "ms/" + average / 1000 + "s");
+
+							// collect each thread's latency and remove from the list -- repeat while the
+							// list is not empty
+							while (!cList.isEmpty()) {
+								try {
+									average += cList.get(0).latency;
+									cList.get(0).dos.writeUTF("quit");
+									cList.remove(0);
+									k++;
+
+									// if process is not finished move thread to the end of the list
+								} catch (NullPointerException ex) {
+									cList.add(cList.remove(0));
+									continue;
+								} catch (IOException e) {
+									e.printStackTrace();
+								}
+							}
+							if (k == n)
+								System.out.println(
+										" The average latency is: " + average / n + "ms and the whole proccess took "
+												+ (System.currentTimeMillis() - processStartTime) + "ms/"
+												+ (System.currentTimeMillis() - processStartTime) / 1000 + "s");
 							try {
 								while (input.available() > 0)
 									input.readUTF();
@@ -192,7 +212,6 @@ public class Client {
 				System.out.print("\n>> ");
 			}
 		} while (true);
-
 		System.out.println("Program closed");
 		try {
 			output.writeUTF("quit");
@@ -206,7 +225,6 @@ public class Client {
 		System.out.println(" 1] Host current Date and Time\n 2] Host uptime\n"
 				+ " 3] Host memory use\n 4] Host Netstat\n 5] Host current users\n"
 				+ " 6] Host running processes\n 7] Quit");
-
 	}
 
 	// check for validity of user input
@@ -221,30 +239,38 @@ public class Client {
 		}
 		return false;
 	}
-	
-	public static class thread extends Client implements Runnable {
 
-		Long timeA;
-		Long timeB;
-		String request;
-		String reply;
+	public static class Clients extends Thread {
 
-		public thread(String hostAddress, Integer port, String request)
+		private Socket soc;
+		private DataInputStream dis;
+		private DataOutputStream dos;
+		protected Long timeA;
+		protected Long timeB;
+		protected String request;
+		protected String reply;
+		protected Long latency;
+
+		public Clients(String hostAddress, Integer port, String request)
 				throws UnknownHostException, IOException, NumberFormatException {
-			super(hostAddress, port);
+
+			soc = new Socket(hostAddress, port);
+			dis = new DataInputStream(soc.getInputStream());
+			dos = new DataOutputStream(soc.getOutputStream());
 			this.request = request;
 		}
 
 		public void run() {
 			timeA = System.currentTimeMillis();
 			try {
-				output.writeUTF(request);
-				reply = input.readUTF();
+				dos.writeUTF(request);
+				reply = dis.readUTF();
 				timeB = System.currentTimeMillis();
+				latency = timeB - timeA;
+				System.out.println(latency + "ms/" + latency / 1000 + "s");
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-
 		}
 	}
 }

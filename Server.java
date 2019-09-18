@@ -36,10 +36,6 @@ public class Server {
 				// let current user be the first on the list
 				user = connectionsList.get(0);
 
-				// setup input/output stream for user
-				user.inputStream = user.inputStream;
-				user.outputStream = user.outputStream;
-
 				// move users with no request to the end of the list
 				if (user.inputStream.available() == 0) {
 					connectionsList.add(connectionsList.remove(0));
@@ -95,14 +91,13 @@ public class Server {
 					user.inputStream.close();
 					user.outputStream.close();
 					user.socket.close();
-					connectionsList.remove(0);
-					System.out.println(" A user left the server   @" + new Time(System.currentTimeMillis()).toString());
+					System.out.println(" User" + connectionsList.remove(0).ipAddress.replace("/", " ")
+							+ " has left the server  @" + new Time(System.currentTimeMillis()).toString());
 					break;
 				default:
 					user.outputStream.writeUTF("Not a valid entry");
 					break;
 				}
-
 			}
 		}
 
@@ -165,7 +160,7 @@ public class Server {
 
 		// iterate through the list and collect user info
 		result = "  #       COMPUTER-NAME           IP-ADDRESS         LOGIN TIME     UPTIME\n"
-			   + " ----  --------------------    -----------------    ------------  -----------\n";
+				+ " ----  --------------------    -----------------    ------------  -----------\n";
 		for (int i = 0; i < connectionsList.size(); i++) {
 			try {
 				client = connectionsList.get(i);
@@ -174,7 +169,7 @@ public class Server {
 
 				ipAddress = client.socket.getRemoteSocketAddress().toString().replace('/', ' ').trim();
 				clientLoginTime = new Time(user.loginTime).toString();
-				clientUpTime = new Time(System.currentTimeMillis() - user.loginTime).toString();
+				clientUpTime = new Time(System.currentTimeMillis() - user.loginTime).toString().substring(3);
 
 				try {
 					// end user names that are too big with "..."
@@ -184,11 +179,11 @@ public class Server {
 						userName = userName + " ";
 					}
 				}
-				for(int j = 0; j < (3 - String.valueOf(i+1).length()); j++)
-				result += " ";
-				result +=  " "+ (i+1) +"    "+ userName + "      " + ipAddress + "       " + clientLoginTime + "      "
-						+ clientUpTime+"\n";
-				
+				for (int j = 0; j < (3 - String.valueOf(i + 1).length()); j++)
+					result += " ";
+				result += " " + (i + 1) + "    " + userName + "      " + ipAddress + "       " + clientLoginTime
+						+ "      " + clientUpTime + "\n";
+
 			} catch (UnknownHostException e) {
 				e.printStackTrace();
 			}
@@ -205,7 +200,7 @@ public class Server {
 			p = Runtime.getRuntime().exec(str);
 
 			// make the thread wait until the process is finished
-			// if netstat is the command being processed
+			// if netstat being processed
 			if (str.contains("netstat"))
 				p.waitFor();
 			String temp;
@@ -246,77 +241,31 @@ public class Server {
 
 	// accept new connections request and add to the list
 	public static class Listener extends Thread {
-		Integer count;
-		Integer c;
-
-		public Listener() {
-			count = 0;
-			c = 0;
-		}
-
 		public void run() {
-
-			new Listener();
-
-			// if many clients join the server at once inform with a single line
-			Runnable counter = new Runnable() {
-				public void run() {
-					while (true) {
-						synchronized (count) {
-							try {
-								while (count > 0) {
-									c = count;
-									Thread.sleep(300);
-									if (count > c)
-										continue;
-									else
-										break;
-								}
-								if (count > 1)
-									System.out.println("[" + (count + 1) + "] Users joined the server @"
-											+ new Time(System.currentTimeMillis()).toString());
-								else if (count == 1) {
-									System.out.println(" A user joined the server @"
-											+ new Time(System.currentTimeMillis()).toString());
-								} else
-									System.out.print("");
-								c = 0;
-								count = 0;
-							} catch (InterruptedException e) {
-								e.printStackTrace();
-							}
-
-						}
-					}
-				}
-			};
-			new Thread(counter).start();
 			while (true) {
 				try {
-
 					userInfo temp = new userInfo(serverSocket.accept());
-					synchronized (count) {
-						count++;
+					System.out.println(" User" + temp.socket.getInetAddress().toString().replace("/", " ")
+							+ " has joined the server @" + new Time(System.currentTimeMillis()).toString());
 
-						synchronized (connectionsList) {
-							connectionsList.notify();
-							connectionsList.add(temp);
+					synchronized (connectionsList) {
+						connectionsList.notify();
+						connectionsList.add(temp);
 
-							connectionsList.get(connectionsList.size()
-									- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket
-											.getInetAddress().toString();
+						connectionsList.get(connectionsList.size()
+								- 1).ipAddress = connectionsList.get(connectionsList.size() - 1).socket.getInetAddress()
+										.toString();
 
-							connectionsList.get(connectionsList.size()
-									- 1).localAddress = connectionsList.get(connectionsList.size() - 1).socket
-											.getLocalAddress().toString();
+						connectionsList.get(connectionsList.size()
+								- 1).localAddress = connectionsList.get(connectionsList.size() - 1).socket
+										.getLocalAddress().toString();
 
-							connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
-						}
+						connectionsList.get(connectionsList.size() - 1).socket.getInputStream();
 					}
+
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
-
 			}
 		}
 	}
